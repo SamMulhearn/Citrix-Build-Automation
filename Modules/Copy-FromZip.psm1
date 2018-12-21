@@ -22,16 +22,16 @@
     process {
         Try {
                 #If destination folder exists, delete the folder.
-                if (!(Test-Path $ZipFile))
+                if (!(Test-Path $ZipFile -PathType Leaf))
                     {
                         throw "$ZipFile not found"
                     }
-                If (Test-Path $DestinationFolder)
+                If (Test-Path $DestinationFolder -PathType Container)
                     { Remove-Item $DestinationFolder -Force -Recurse -ErrorAction SilentlyContinue }
                 New-Item -Path $DestinationFolder -ItemType directory -Force |Out-Null
     
                 #Extract Zip
-                Write-Log "Extracting $ZipFile to $DesinationFolder" -Path $CurrentLogFile
+                Write-Log "Extracting $ZipFile to $DestinationFolder" -Path $CurrentLogFile
                 Add-Type -AssemblyName System.IO.Compression.FileSystem
                 [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipFile, $DestinationFolder)
             }
