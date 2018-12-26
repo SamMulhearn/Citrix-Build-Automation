@@ -154,12 +154,12 @@ Part 4: Configure the setup for AD
     Write-Host "Part 4: AD"
     $AD = $null
     $ConfigureAD = Read-BooleanQuestion -Question "Would you like to configure AD?"
-    if ($ConfigureAD -eq $true)
-        {
-            $BaseOU = Read-Host "What is the Base OU? e.g. DC=Domain,DC=Local"
-            $Domain = Read-Host "What is the FQDN for the Domain? e.g. domain.local"
-        }
-    $AD = [pscustomobject]@{ConfigureAD=$ConfigureAD; BaseOU=$BaseOU ;Domain=$Domain }    
+    #if ($ConfigureAD -eq $true)
+    #    {
+    #        $BaseOU = Read-Host "What is the Base OU? e.g. DC=Domain,DC=Local"
+    #        $Domain = Read-Host "What is the FQDN for the Domain? e.g. domain.local"
+    #    }
+    $AD = [pscustomobject]@{ConfigureAD=$ConfigureAD } #; BaseOU=$BaseOU ;Domain=$Domain }    
 
 
     $ScriptParameters = [pscustomobject]@{Servers=$Servers; VDAs=$VDAs; WEMServers=$WEMservers; AD=$AD}  
