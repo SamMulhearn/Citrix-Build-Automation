@@ -66,7 +66,6 @@
                 throw $_.exception
               }
 
-        
         If ($ExitCode -eq 0)
             { Write-Log "Successfully installed $Executable on $TargetMachine" -path $CurrentLogFile}
         else
