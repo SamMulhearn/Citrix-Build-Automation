@@ -22,7 +22,7 @@
             }
             catch { throw $_.Exception}
 
-            If ($process.ExitCode -notin (0,1,4))
+            If ($process.ExitCode -notin (0,1,4,3,5,6,7))
                 {
                     
                     throw ("Copying files from $SourceDirectory to $DestinationDirectory Failed. the exitcode was "+ $process.ExitCode) 
