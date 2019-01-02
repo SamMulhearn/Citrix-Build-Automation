@@ -1,5 +1,4 @@
-new-module -name CitrixBuild -scriptblock {
-
+new-module -name CitrixBuild -scriptblock { 
 function Copy-FromISO { 
    [CmdletBinding()] 
    param ([String]$TargetMachine,
@@ -302,7 +301,7 @@ Part 4: Configure the setup for AD
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); 
 
 }
-function Initialize-Machine
+﻿function Initialize-Machine
 { 
     [CmdletBinding()] 
     param ([String]$TargetMachine,
@@ -338,7 +337,7 @@ function Initialize-Machine
         
             Write-Log -Path $CurrentLogFile -Message "Enabling Remote Desktop on $TargetMachine"
             $session = New-PSSession -computername $TargetMachine
-            Invoke-Command -Session $session -ScriptBlock { Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0 }
+            Invoke-Command -Session $session -ScriptBlock { Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" –Value 0 }
             Remove-PSSession $session
             Write-Log -Path $CurrentLogFile -Message "Enabled Remote Desktop on $TargetMachine"
         
@@ -788,12 +787,12 @@ Function Publish-GPOtoAD {
             Write-log -Path $CurrentLogFile -Message "Imported AD/GPO Modules"
             if ($VDA -ne $null -or $VDA -ne "") {
                 if (Test-Path -Path "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions" -PathType Container) {
-                    Write-Log -Path $CurrentLogFIle -Message "Copying ADMX/ADML files for BIS-F and FSLogix to the Central Store"
+                    Write-Log -Path $CurrentLogFIle -Message "Copying ADMX/ADML files for BIS-F & FSLogix to the Central Store"
                     Copy-Item -Path "\\$VDA\\C$\Program Files (x86)\Base Image Script Framework (BIS-F)\ADMX\BaseImageScriptFramework.admx" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions" -Force
                     Copy-Item -Path "\\$VDA\\C$\Program Files (x86)\Base Image Script Framework (BIS-F)\ADMX\en-US\BaseImageScriptFramework.adml" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions\en-US" -Force
                     Copy-Item -Path "C:\Cetus\Software\FSLogix\fslogix.admx" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions" -Force
                     Copy-Item -Path "C:\Cetus\Software\FSLogix\fslogix.adml" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions\en-US" -Force
-                    Write-Log -Path $CurrentLogFIle -Message "Copied ADMX/ADML files for BIS-F and FSLogix to the Central Store"
+                    Write-Log -Path $CurrentLogFIle -Message "Copied ADMX/ADML files for BIS-F & FSLogix to the Central Store"
                 }
             }
         }
@@ -934,5 +933,4 @@ function Write-Log
     { 
     } 
 }
-export-modulemember -Function Copy-FromISO,Copy-FromZip,Publish-GPOtoAD,Copy-RoboMirror,Get-OrdinalNumber,Read-BooleanQuestion,Select-Products,Set-Parameters,Initialize-Machine,Install-CitrixProduct,Install-Software,Install-VDA,Install-WEM,Install-WinRolesAndFeatures,Test-JSONFile,Write-Log
-}
+export-modulemember -Function Copy-FromISO,Copy-FromZip,Publish-GPOtoAD,Copy-RoboMirror,Get-OrdinalNumber,Read-BooleanQuestion,Select-Products,Set-Parameters,Initialize-Machine,Install-CitrixProduct,Install-Software,Install-VDA,Install-WEM,Install-WinRolesAndFeatures,Test-JSONFile,Write-Log } 
