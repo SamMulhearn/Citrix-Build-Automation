@@ -1,4 +1,4 @@
-﻿Function Copy-FromZip {
+Function Copy-FromZip {
     [CmdletBinding()] 
     param (
 
@@ -42,5 +42,3 @@
     }
     end {}
 }
-
-Export-ModuleMember Copy-FromZip

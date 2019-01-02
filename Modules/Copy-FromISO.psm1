@@ -1,4 +1,4 @@
-﻿function Copy-FromISO { 
+function Copy-FromISO { 
    [CmdletBinding()] 
    param ([String]$TargetMachine,
 

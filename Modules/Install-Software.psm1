@@ -1,4 +1,4 @@
-﻿Function Install-Software {
+Function Install-Software {
     [CmdletBinding()] 
     param (
             [Parameter(Mandatory=$true)]
@@ -77,5 +77,3 @@
     }
     end {}
 }
-
-Export-ModuleMember Install-Software

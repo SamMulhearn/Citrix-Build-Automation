@@ -1,4 +1,4 @@
-﻿Function Install-WEM {
+Function Install-WEM {
     [CmdletBinding()] 
     param (
             [Parameter(Mandatory=$true)]
@@ -39,5 +39,3 @@
     }
 
 }
-
-Export-ModuleMember Install-WEM

@@ -1,4 +1,4 @@
-﻿function Install-CitrixProduct {
+function Install-CitrixProduct {
     [CmdletBinding()] 
     param ([String]$TargetMachine,
 
@@ -53,5 +53,3 @@
     { 
     } 
 }
-
-Export-ModuleMember -Function Install-CitrixProduct

@@ -1,4 +1,4 @@
-﻿Function Copy-RoboMirror {
+Function Copy-RoboMirror {
     [CmdletBinding()] 
     param (
             [Alias('Source')] 
@@ -28,5 +28,3 @@
                     throw ("Copying files from $SourceDirectory to $DestinationDirectory Failed. the exitcode was "+ $process.ExitCode) 
                  }
 }
-
-Export-ModuleMember -Function Copy-RoboMirror

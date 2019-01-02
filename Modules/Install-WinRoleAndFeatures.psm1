@@ -1,4 +1,4 @@
-﻿Function Install-WinRolesAndFeatures {
+Function Install-WinRolesAndFeatures {
     [CmdletBinding()] 
     param (
             [Parameter(Mandatory=$true)]
@@ -44,5 +44,3 @@
     }
     end {}       
 }
-
-Export-ModuleMember Install-WinRolesAndFeatures

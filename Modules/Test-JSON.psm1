@@ -1,4 +1,4 @@
-﻿#Internal Function to validate JSON file
+#Internal Function to validate JSON file
 Function Test-JSONFile
 {
     Param ([string]$JSONFile)
@@ -15,4 +15,3 @@ Function Test-JSONFile
         return $false;
     } 
 }
-Export-ModuleMember -Function Test-JSONFile

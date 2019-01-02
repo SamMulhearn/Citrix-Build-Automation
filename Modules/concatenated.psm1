@@ -1,0 +1,938 @@
+new-module -name CitrixBuild -scriptblock {
+
+function Copy-FromISO { 
+   [CmdletBinding()] 
+   param ([String]$TargetMachine,
+
+           [Parameter(Mandatory=$true)] 
+           [Alias('LogFile')] 
+           [string]$CurrentLogFile='C:\Logs\PowerShellLog.log',
+
+           [Parameter(Mandatory=$true)] 
+           [string]$Destination,
+           
+           [Parameter(Mandatory=$true)] 
+           [string]$Source
+
+
+    ) 
+ 
+   begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+   Process {
+    #Mount Disk ISO
+    Write-Log -Path $CurrentLogFile -Message "Mounting $Source"
+  
+        
+    $Source
+    If (!(Test-Path -Path $Source -PathType Leaf))
+        {
+            throw "Couldn't find $Source"
+        }
+        
+    $Source = (Get-ChildItem -Path $Source -File | Select -First 1)
+        
+    $mount_params = @{ImagePath = $Source; PassThru = $true; ErrorAction = "Ignore"}
+    $mount = Mount-DiskImage @mount_params
+    if($mount) {
+        $volume = Get-DiskImage -ImagePath $mount.ImagePath | Get-Volume
+        Write-Log -path $CurrentLogFile -message ("Mounted $Source to " + $volume.DriveLetter + ":\" )
+        }
+    else {
+        Write-Log -Path $CurrentLogFile -Message ("ERROR: Could not mount $Source check if file is already in use") -level Error
+        throw ("ERROR: Could not mount $Source check if file is already in use")
+        }
+        #Extract ISO
+        Write-Log -Path $CurrentLogFile "Extracting $Source to $Destination. This might take a few minutes"
+        Try { Copy-RoboMirror -SourceDirectory ( $volume.DriveLetter + ":\") -DestinationDirectory $Destination -logFile $CurrentLogFile }
+        catch { throw $_.Exception }
+    Write-Log -Path $CurrentLogFile "Extracted $Source to $Destination"
+    #Dismount ISO
+    if (Dismount-DiskImage -ImagePath $mount.ImagePath -PassThru) {Write-Log -Path $CurrentLogFile -Message ("Dismounted " + $volume.DriveLetter + ":\")}
+    }
+    end {}
+}
+Function Copy-FromZip {
+    [CmdletBinding()] 
+    param (
+
+           [Parameter(Mandatory=$true)] 
+           [Alias('LogFile')] 
+           [string]$CurrentLogFile='C:\Logs\PowerShellLog.log',
+
+           [Parameter(Mandatory=$true)] 
+           [string]$ZipFile,
+
+           [Parameter(Mandatory=$true)] 
+           [string]$DestinationFolder
+    )
+    
+    begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+
+    process {
+        Try {
+                #If destination folder exists, delete the folder.
+                if (!(Test-Path $ZipFile -PathType Leaf))
+                    {
+                        throw "$ZipFile not found"
+                    }
+                If (Test-Path $DestinationFolder -PathType Container)
+                    { Remove-Item $DestinationFolder -Force -Recurse -ErrorAction SilentlyContinue }
+                New-Item -Path $DestinationFolder -ItemType directory -Force |Out-Null
+    
+                #Extract Zip
+                Write-Log "Extracting $ZipFile to $DestinationFolder" -Path $CurrentLogFile
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipFile, $DestinationFolder)
+            }
+        catch {
+                throw $_.Exception
+        }
+        Write-Log "Extracted $ZipFile to $DestinationFolder" -path $CurrentLogFile
+    }
+    end {}
+}
+Function Copy-RoboMirror {
+    [CmdletBinding()] 
+    param (
+            [Alias('Source')] 
+            [String]$SourceDirectory,
+            
+            [Alias('Destination')] 
+            [String]$DestinationDirectory,
+            
+            [Parameter(Mandatory=$true)] 
+            [Alias('LogFile')] 
+            [string]$CurrentLogFile='C:\Logs\PowerShellLog.log'
+
+            )
+            
+            #$CurrentLogFile = ( (Get-Item $CurrentLogFIle).DirectoryName + "\" + (Get-Item $CurrentLogFIle).BaseName + "_robocopy.log" )
+
+
+            $Args = @($SourceDirectory, $DestinationDirectory, "/MIR","/R:5", "/W:15" ,"/MT:4","/unilog+:$CurrentLogFile")
+            Try {
+                $process = Start-Process -FilePath "$env:SystemRoot\system32\Robocopy.exe" -ArgumentList $Args -PassThru -Wait -Verb runAs -WindowStyle Hidden
+            }
+            catch { throw $_.Exception}
+
+            If ($process.ExitCode -notin (0,1,2,4,3,5,6,7))
+                {
+                    
+                    throw ("Copying files from $SourceDirectory to $DestinationDirectory Failed. the exitcode was "+ $process.ExitCode) 
+                 }
+}
+Function Get-OrdinalNumber {
+    Param(
+        [Parameter(Mandatory=$true)]
+        [int64]$num
+    )
+
+    $Suffix = Switch -regex ($Num) {
+        '1(1|2|3)$' { 'th'; break }
+        '.?1$'      { 'st'; break }
+        '.?2$'      { 'nd'; break }
+        '.?3$'      { 'rd'; break }
+        default     { 'th'; break }
+    }
+    Write-Output "$Num$Suffix"
+}
+
+Function Read-BooleanQuestion {
+    param (
+            [String]$Question
+            )
+    
+    $answer = Read-Host "$Question [Y]es or [N]o"
+    while("yes","no","y","n" -notcontains $answer)
+    {
+	    $answer = Read-Host "$Question [Y]es or [N]o"
+    }
+
+    Switch ($answer.ToLower()) {
+        "yes" { return $true}
+        "y" { return $true}
+        "no" { return $false}
+        "n" { return $false}
+    }
+}
+
+
+Function Select-Products {
+    
+    [CmdletBinding()] 
+    param (
+            [String]$Address
+            )
+    
+    
+    Write-Host "Select products to install on $Address";
+    Write-Host 'Press any key to continue...';
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); 
+     
+     $Menu = [ordered]@{
+      1 = 'STOREFRONT'
+      2 = 'CONTROLLER'
+      3 = 'DESKTOPDIRECTOR'
+      4 = 'DESKTOPSTUDIO'
+      5 = 'LICENSESERVER'
+      }
+     $Result = $Menu | Out-GridView -PassThru  -Title "What products would you like to install on $address. Hold CTRL or Shift to select multiple products"
+
+
+        
+    $Products = @()
+    $Result | foreach {
+        $Products += @{name = $_.Value}
+    }
+    return $Products    
+}
+     
+Function Set-Parameters {
+    $Message =  
+
+"
+The parameters file was not found, creating a new parameters file...
+
+The parameters for this script are configured in four parts.
+
+Part 1: Nominate machines to install the following components on:
+
+- Delivery Controller
+- StoreFront
+- License Server
+- Citrix Studio
+- Citrix Director
+
+Part 2: Nominate machines to install the VDA and associated components on.
+
+Part 3: Nominate machines to install the WEM Infrastructure component on.
+
+Part 4: Configure the setup for AD
+"
+
+    Write-Host $Message
+    Write-Host 'Press any key to continue...';
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+
+    Write-Host "Part 1: - Delivery Controller, StoreFront, License Server, Citrix Studio, Citrix Director"
+    [int]$Qty = Read-Host "On how many servers would you like to install one or more of the above products on?"
+
+
+    $Servers = @()
+    
+    if ($Qty -gt 0 ) {
+        
+        1..$Qty| ForEach {
+            $OrdNum = Get-OrdinalNumber -num $_
+            $Address =  Read-Host "What is the IP address or FQDN of the $OrdNum server?"
+            $Products = Select-Products -Address $Address
+            $line = [pscustomobject]@{Address=$Address; Products=$Products}
+            $servers += @($line)
+        }
+    }
+    
+    
+    $VDAs = @()
+
+    Write-Host "Part 2: VDA"
+    [int]$Qty = Read-Host "How many machines would you like to install the VDA on?"
+
+    if ($Qty -gt 0 ) {
+
+        1..$Qty| ForEach {
+            $OrdNum = Get-OrdinalNumber -num $_
+            $Address =  Read-Host "What is the IP address or FQDN of the $OrdNum machine?"
+            $InstallFSLogix = Read-BooleanQuestion -Question "Would you like to install FSLogix on $Address`?"
+            if ($InstallFSLogix -eq $true)
+                
+                {   If (!(Read-BooleanQuestion -Question "Would you like to use an FSLogix 30 day trial?"))
+                        { $FSLogixLicenseKey = (Read-Host -Prompt "Enter the FSLogix license key.") }
+                    else { $FSLogixLicenseKey = ""}
+                }
+            else { $FSLogixLicenseKey = "" }
+            $PVS = Read-BooleanQuestion -Question "Are you using PVS with $Address`?"
+            $AppV = Read-BooleanQuestion -Question "Are you using AppV with $Address`?"
+            $CitrixFiles = Read-BooleanQuestion -Question "Would you like to install Citrix Files on $Address`?"
+            $WorkspaceApp = Read-BooleanQuestion -Question "Would you like to install the Workspace App on $Address`?"
+            $InstallWEM = Read-BooleanQuestion -Question "Would you like to install the WEM agent on $Address`?"
+            $line = [pscustomobject]@{Address=$Address; InstallFSLogix=$InstallFSLogix ;FSLogixLicenseKey=$FSLogixLicenseKey; PVS=$PVS; AppV=$AppV; CitrixFiles=$CitrixFiles; WorkspaceApp=$WorkspaceApp; InstallWEM=$InstallWEM }    
+            $VDAs += @($line)
+        }
+    }
+    
+    Write-Host "Part 3: WEM"
+    [int]$Qty = Read-Host "How many machines would you like to install the WEM infrastructure component on?"
+
+    $WEMServers = @()
+    if ($Qty -gt 0 ) {
+        
+        1..$Qty| ForEach {
+            $OrdNum = Get-OrdinalNumber -num $_
+            $Address =  Read-Host "What is the IP address or FQDN of the $OrdNum server?"
+            $line = [pscustomobject]@{Address=$Address}
+            $WEMservers += @($line)
+        }
+    }
+
+    Write-Host "Part 4: AD"
+    $AD = $null
+    $ConfigureGPO = Read-BooleanQuestion -Question "Would you like to import the GPO templates into AD?"
+    #if ($ConfigureAD -eq $true)
+    #    {
+    #        $BaseOU = Read-Host "What is the Base OU? e.g. DC=Domain,DC=Local"
+    #        $Domain = Read-Host "What is the FQDN for the Domain? e.g. domain.local"
+    #    }
+    $AD = [pscustomobject]@{ConfigureGPO=$ConfigureGPO } #; BaseOU=$BaseOU ;Domain=$Domain }    
+
+
+    $ScriptParameters = [pscustomobject]@{Servers=$Servers; VDAs=$VDAs; WEMServers=$WEMservers; AD=$AD}  
+
+    $ScriptParameters | ConvertTo-Json -Depth 4| Out-File "$env:CetusScriptRoot\parameters.json" -Force
+    Write-Host "Saved parameters to $env:CetusScriptRoot\parameters.json"
+
+    Write-Host 'Press any key to continue...';
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); 
+
+}
+function Initialize-Machine
+{ 
+    [CmdletBinding()] 
+    param ([String]$TargetMachine,
+
+           [Parameter(Mandatory=$true)] 
+           [Alias('LogFile')] 
+           [string]$CurrentLogFile='C:\Logs\PowerShellLog.log'
+    ) 
+ 
+   begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+    Process 
+    {   
+
+        Try {
+            #Start
+            Write-Log -Path $CurrentLogFile -Message "Starting Prerequsite tasks on $TargetMachine"
+            Write-Log -Path $CurrentLogFile -Message "Checking remote PowerShell connectivity to $TargetMachine"
+            #Test PowerShell Remote
+            Try { Test-WSMan -ComputerName $TargetMachine -ErrorAction Stop -Authentication Kerberos | Out-Null }
+            catch { throw $_ }
+        
+            #Disable Windows Firewall
+            Write-Log -Path $CurrentLogFile -Message "Disabling firewall on $TargetMachine"
+
+            $session = New-PSSession -computername $TargetMachine
+            Invoke-Command -Session $session -ScriptBlock { Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False }
+            Remove-PSSession $session
+            Write-Log -Path $CurrentLogFile -Message "Disabled Firewall on $TargetMachine"
+        
+            Write-Log -Path $CurrentLogFile -Message "Enabling Remote Desktop on $TargetMachine"
+            $session = New-PSSession -computername $TargetMachine
+            Invoke-Command -Session $session -ScriptBlock { Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0 }
+            Remove-PSSession $session
+            Write-Log -Path $CurrentLogFile -Message "Enabled Remote Desktop on $TargetMachine"
+        
+            #Copy files to target
+            Write-Log -Path $CurrentLogFile -Message "Copying installation files to $TargetMachine. This might take a few minutes."
+            Try {
+                    Copy-RoboMirror -SourceDirectory "C:\Cetus\Software" -DestinationDirectory "\\$TargetMachine\C$\Cetus\Software" -logFile $CurrentLogFile
+                }
+            Catch { throw $_.Exception }
+            
+            Write-Log -Path $CurrentLogFile -Message "Copied installation files to $TargetMachine"
+
+            Write-Log -message "Installing .net" -Path $CurrentLogFile
+            try {
+                #Install .net
+                $command = (Get-Item -path "C:\Cetus\Software\CVAD\Support\DotNet*\NDP*.exe" | Select -First 1).FullName
+                $commandargs =  @("/norestart", "/quiet" ,"/q:a")
+                Install-Software -TargetMachine $TargetMachine -Executable $command -CommandArguments $commandargs -RestartExitCodes @(3010) -SuccessExitCodes @('0') -LogFile $CurrentLogFile
+            }
+            catch { throw $_.exception }
+        
+            Write-Log -message "Installed .net" -Path $CurrentLogFile
+
+            #Finished
+            Write-Log -Path $CurrentLogFile -Message "Finished Prerequsite tasks on $TargetMachine"
+        }
+        catch {throw $_.Exception}
+    }
+    End 
+    { 
+ 
+    } 
+}
+function Install-CitrixProduct {
+    [CmdletBinding()] 
+    param ([String]$TargetMachine,
+
+           [String[]]$Products, #Array of Citrix Products
+
+           [Parameter(Mandatory=$true)] 
+           [Alias('LogFile')]
+           [string]$CurrentLogFile
+
+           ) 
+ 
+   begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+    Process 
+    { 
+        Write-Log -Path $CurrentLogFile -Message ("Starting installation of " + ($Products -join ", ") + " on $TargetMachine")
+        Try { Initialize-Machine -TargetMachine $TargetMachine -ErrorAction Stop -LogFile $CurrentLogFile }
+            catch { throw $_.Exception }
+        try {
+            Write-Log -Message "Installing Windows Roles" -Path $CurrentLogFile
+            switch ( $products ) #ForEach Product
+                {
+                    "CONTROLLER" { $FeaturesToInstall  += @('NET-Framework-45-Core','NET-Framework-Core')    }
+                    "DESKTOPSTUDIO" { $FeaturesToInstall += @('NET-Framework-45-Core','NET-Framework-Core')    }
+                    "DESKTOPDIRECTOR" { $FeaturesToInstall += @('NET-Framework-45-Core','NET-Framework-Core',"Web-WebServer", "Web-ASP")   }
+                    "LICENSESERVER" { $FeaturesToInstall += @('NET-Framework-45-Core','NET-Framework-Core') }
+                    "STOREFRONT" { $FeaturesToInstall += @('NET-Framework-45-Core','NET-Framework-Core',"Web-Static-Content","Web-Default-Doc","Web-Http-Errors","Web-Http-Redirect","Web-Http-Logging","Web-Mgmt-Console","Web-Scripting-Tools","Web-Windows-Auth","Web-Basic-Auth","Web-AppInit","Web-Asp-Net45","Net-Wcf-Tcp-PortSharing45","Web-WebServer")  }
+                }
+        
+                $FeaturesToInstall = $FeaturesToInstall | select -uniq
+        
+                Install-WinRolesAndFeatures -TargetMachine $TargetMachine -RolesAndFeatures $FeaturesToInstall -CurrentLogFile $CurrentLogFile
+            }
+        catch { throw $_}
+        Write-Log -Message "Installed Windows Roles" -Path $CurrentLogFile
+        
+        Write-Log -Message "Installing Citrix Product(s)" -Path $CurrentLogFile
+        Try {
+            Write-Log -Path $CurrentLogFile -Message ("Installing " + ($Products -join ", ") + " on $TargetMachine. See \\$TargetMachine\C$\Cetus\ for logs.")
+            $commandargs =  @("/configure_firewall", "/quiet", "/logpath C:\Cetus", "/noreboot", "/nosql")
+            $commandargs += ("/components " + ($Products -join ","))        
+            Install-Software -TargetMachine $TargetMachine -Executable "C:\Cetus\Software\CVAD\x64\XenDesktop Setup\XenDesktopServerSetup.exe" -CommandArguments $commandargs -RestartExitCodes @('3010') -SuccessExitCodes @(0) -LogFile $CurrentLogFile
+        }
+        catch {throw $_}
+        
+        Write-Log -Path $CurrentLogFile -Message ("Finished Installation of  " + ($Products -join ", ") + " on $TargetMachine. See \\$TargetMachine\C$\Cetus\ for logs.")
+    }
+    End 
+    { 
+    } 
+}
+Function Install-Software {
+    [CmdletBinding()] 
+    param (
+            [Parameter(Mandatory=$true)]
+            [String]$TargetMachine,
+
+            [Parameter(Mandatory=$true)]
+            [String]$Executable,
+
+            [Parameter(Mandatory=$true)]
+            [String[]]$CommandArguments,
+
+            [Parameter(Mandatory=$true)]
+            [int[]]$RestartExitCodes,
+
+            [Parameter(Mandatory=$true)]
+            [int[]]$SuccessExitCodes,
+
+            [Parameter(Mandatory=$true)] 
+            [Alias('LogFile')] 
+            [string]$CurrentLogFile
+
+        )
+
+    begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+
+    process {
+        Write-Log -Path $CurrentLogFile -Message ("Installing $Executable on $TargetMachine with the following parameters " + ($CommandArguments -join " "))
+
+        $InstallScriptBlock = { 
+                $env:SEE_MASK_NOZONECHECKS = 1
+                $Executable = $args[($args.Count -1)]
+                $args = $args[0..($args.Count-2)]
+                $command = (Get-Item -path $Executable | Select -First 1).FullName
+                $Process = Start-Process -FilePath $Executable -ArgumentList $args -Verb runAs -Wait -PassThru
+                return $process.ExitCode
+            }
+
+
+        $ExitCode = $null
+        Try {   
+                #Repeat instalation until exit code not restart required.
+                Do {
+                    $session = New-PSSession -computername $TargetMachine
+                    if ($ExitCode -ne $null) 
+                        { Write-Log -Path $CurrentLogFile -Message ("Resuming $Executable Install on $TargetMachine") }
+                    Else
+                        { $CommandArguments += $Executable }
+                    $ExitCode = Invoke-Command -Session $session -ScriptBlock $InstallScriptBlock -ArgumentList $CommandArguments
+                    
+                    If ($ExitCode -in $RestartExitCodes) 
+                        {
+                            Write-Log -Path $CurrentLogFile -Message "Restart required, restarting $TargetMachine"
+                            Restart-Computer -ComputerName $TargetMachine -Wait -For PowerShell -Timeout 600 -Protocol WSMan  -Force
+                        }
+                     
+                    }
+                 While ($ExitCode -in $RestartExitCodes)
+            }
+                
+        Catch { 
+                throw $_.exception
+              }
+
+        If ($ExitCode -eq 0)
+            { Write-Log "Successfully installed $Executable on $TargetMachine" -path $CurrentLogFile}
+        else
+            {
+                $HEXExitCode = "{0:x}" -f $ExitCode
+                throw "Failed to install $Exectuable on $TargetMachine, error code was $ExitCode. The HEX error code was $HEXExitCode."
+                
+            }
+    }
+    end {}
+}
+Function Install-VDA {
+    [CmdletBinding()] 
+    param (
+            [Parameter(Mandatory=$true)]
+            [String]$TargetMachine,
+            
+            [Parameter(Mandatory=$true)] 
+            [Alias('LogFile')] 
+            [string]$CurrentLogFile,
+
+            [Parameter(Mandatory=$true)]
+            [boolean]$InstallFSLogix,
+
+            [Parameter(Mandatory=$true)]
+            [AllowEmptyString()]
+            [string]$FSLogixLicenseKey,
+
+            [Parameter(Mandatory=$true)]
+            [boolean]$PVS,
+
+            [Parameter(Mandatory=$true)]
+            [boolean]$AppV,
+
+            [Parameter(Mandatory=$true)]
+            [boolean]$CitrixFiles,
+
+            [Parameter(Mandatory=$true)]
+            [boolean]$WorkSpaceApp,
+
+            [Parameter(Mandatory=$true)]
+            [boolean]$InstallWEM
+
+
+            )
+
+    begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+    process {
+        
+
+        Write-Log -Path $CurrentLogFIle -Message "Starting VDA Installation on $TargetMachine"
+        Initialize-Machine -TargetMachine $TargetMachine -LogFile $CurrentLogFile
+        Write-Log -Path $CurrentLogFIle -Message "Determining OS of $TargetMachine"
+        $OS = Get-WmiObject -Computer $TargetMachine -Class Win32_OperatingSystem
+        $DesktopOS = switch -Wildcard ( $OS.Caption )
+            {
+                '*Windows Server 2016*' { $false }
+                '*Windows 10*'   { $true }
+             }
+
+        if ($DesktopOS -eq $false)
+            {
+                Write-Log -Path $CurrentLogFIle -Message "Detected Server OS"
+                $FeaturestoInstall = ("RDS-RD-Server","Remote-Assistance")
+                Install-WinRolesAndFeatures -TargetMachine $TargetMachine -CurrentLogFile $CurrentLogFile -RolesAndFeatures $FeaturestoInstall
+                
+             }
+        else { Write-Log -Path $CurrentLogFIle -Message "Detected Desktop OS" }
+        
+            
+        #Install CVDA
+        $Command = "C:\Cetus\Software\CVAD\x64\XenDesktop Setup\XenDesktopVDASetup.exe"
+        if ($WorkSpaceApp -eq $true) {$Arguments = @("/components VDA,PLUGINS")}
+        else {$Arguments = @("/components VDA")}
+
+        $Arguments += ("/enable_framehawk_port", "/enable_hdx_ports", `
+            "/enable_hdx_udp_ports","/enable_real_time_transport","/enable_remote_assistance", `
+            "/logpath C:\Cetus","/noreboot","/Optimize","/quiet","/virtualmachine", "/noresume" ) 
+
+        if ($PVS -eq $true) {$Arguments += "/masterpvsimage"}
+        else {$Arguments += ("/mastermcsimage","/install_mcsio_driver")}
+
+        #Exclude specified components
+        $Exclude = @("`"Personal vDisk`"")
+        If ($CitrixFiles -eq $false) {$Exclude += @("`"Citrix Files for Windows`"")}
+        If ($AppV -eq $false) {$Exclude += @("`"Citrix Personalization for App-V - VDA`"")}
+        #add exclude to VDA arguments
+        $Arguments += ("/exclude " + ($Exclude -join ","))
+        Try { Install-Software -TargetMachine $TargetMachine -Executable $Command -CommandArguments $Arguments -RestartExitCodes @(3) -SuccessExitCodes @(0) -CurrentLogFile $CurrentLogFile }
+        catch {throw $_.Exception}
+        
+        #Install FXLogix
+        $Command = "C:\Cetus\Software\FSLogix\x64\Release\FSLogixAppsSetup.exe"
+
+        #Build Args
+        if ($InstallFSLogix -eq $true) {
+            $Arguments = ("/install","/quiet", "/norestart")
+            if ($FSLogixLicenseKey -ne "")  {$Arguments += "ProductKey=$FSLogixLicenseKey"}
+        }
+
+        Try { Install-Software -TargetMachine $TargetMachine -Executable $Command -CommandArguments $Arguments -RestartExitCodes @(3010) -SuccessExitCodes @(0) -CurrentLogFile $CurrentLogFile }
+        catch {throw $_.Exception}
+        
+        #Install WEM
+        $Command = (Get-Item -Path "C:\Cetus\Software\WEM\Workspace-Environment-Management*\Citrix Workspace Environment Management Agent Setup.exe" | Select -First 1)
+        if ($InstallWEM -eq $true) { $Arguments = @( "/S", "/V/qn/norestart") }
+        Try {Install-Software -TargetMachine $TargetMachine -Executable $Command -CommandArguments $Arguments -RestartExitCodes @(3010) -SuccessExitCodes @(0) -CurrentLogFile $CurrentLogFile }
+        catch {throw $_.Exception}
+
+         #Install BIS-F
+         $Executable = (Get-Item -Path "C:\Cetus\Software\BIS-F\setup-BIS-F*.exe" | Select -First 1)
+         $Arguments = ("/VERYSILENT", "/LOG", "/NORESTART", "/RESTARTEXITCODE=1010", "/CLOSEAPPLICATIONS")
+         try { Install-Software -TargetMachine $TargetMachine -Executable $Executable -CommandArguments $Arguments -RestartExitCodes @(1010) -SuccessExitCodes @(0) -CurrentLogFile $CurrentLogFile }
+         catch { throw $_.Exception }
+
+        #Optimising VDA
+        Write-Log -Path $CurrentLogFile -Message "Optimising VDA with Citrix Optimiser"
+        $Service = Get-Service -ComputerName $TargetMachine -Name RemoteRegistry
+        (Get-Service -ComputerName $TargetMachine -Name RemoteRegistry)|Set-Service -StartupType Manual -Status Running
+        Get-Service -ComputerName $TargetMachine -Name RemoteRegistry|Set-Service -StartupType $service.StartType      
+        $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $TargetMachine)
+        $RegKey= $Reg.OpenSubKey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion")
+        $ReleaseID = $RegKey.GetValue("ReleaseID")
+        Write-Log -Path $CurrentLogFIle -Message "Detected OS Version $ReleaseID"      
+        if ($DesktopOS -eq $true) {
+            $File = `
+                switch ($ReleaseID) {
+                    "1607" {"Citrix_Windows_10_1607.xml"}
+                    "1703" {"Citrix_Windows_10_1703.xml"}
+                    "1709" {"Citrix_Windows_10_1709.xml"}
+                    "1803" {"Citrix_Windows_10_1803.xml"}
+                    "1809" {"Citrix_Windows_10_1809.xml"}
+                    
+                }
+         }
+         else { $File = `
+            switch ($ReleaseID) {
+                "1607" {"Citrix_Windows_Server_2016_1607.xml"}
+                "1809" {"Citrix_Windows_Server_2019_1809.xml"}
+                  }
+         }
+            
+         $File = "C:\Cetus\Software\CitrixOptimizer\Templates\$File"
+         Write-Log -Path $CurrentLogFile -Message "Optimisation template is $File"
+         $session = New-PSSession -computername $TargetMachine
+         Try { 
+            Invoke-Command -Session $session -ScriptBlock { 
+                $File = $args[0]
+                $EX = Get-ExecutionPolicy
+                Set-ExecutionPolicy ByPass -Force
+                & "C:\Cetus\Software\CitrixOptimizer\CtxOptimizerEngine.ps1" -Source $file -Mode execute -OutputHtml C:\Cetus\Optimise.html -OutputXml C:\Cetus\Optimise.xml
+                Set-ExecutionPolicy $EX -Force
+             } -ArgumentList $File
+         }
+         catch { throw $_.Exception }
+         If (Test-Path ("\\$TargetMachine\C$\Cetus\Optimise.html")) {
+            Write-Log -Path $CurrentLogFile -Message "Finished Optimisations see \\$TargetMachine\C$\Cetus\Optimise.html"
+         }
+         else { throw "Optimisations may have failed, see \\$TargetMachine\C$\Cetus\Software\CitrixOptimizer\Logs" }
+        #Finish
+        Write-Log -Path $CurrentLogFIle -Message "Finished VDA Installation on $TargetMachine"
+    }
+    end {}
+}
+Function Install-WEM {
+    [CmdletBinding()] 
+    param (
+            [Parameter(Mandatory=$true)]
+            [String]$TargetMachine,
+            
+            [Parameter(Mandatory=$true)] 
+            [Alias('LogFile')] 
+            [string]$CurrentLogFile
+            )
+
+    begin {
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    }
+    process {
+        
+        Try {
+                Write-Log -Path $CurrentLogFIle -Message "Starting WEM Installation on $TargetMachine"
+                Initialize-Machine -TargetMachine $TargetMachine -CurrentLogFile $CurrentLogFile
+                $arguments = @( "/S", "/V/qn/norestart")
+
+                $WEM = (Get-Item -Path "C:\Cetus\Software\WEM\Workspace-Environment-Management*\Citrix Workspace Environment Management Infrastructure Services Setup.exe" | Select -First 1)
+                Install-Software -TargetMachine $TargetMachine -Executable $WEM -CommandArguments $arguments -RestartExitCodes @('3010') -SuccessExitCodes @('0') -CurrentLogFile $CurrentLogFile 
+                
+                
+                $WEMConsole = (Get-Item -Path "C:\Cetus\Software\WEM\Workspace-Environment-Management*\Citrix Workspace Environment Management Console Setup.exe" | Select -First 1)
+                Install-Software -TargetMachine $TargetMachine -Executable $WEMConsole -CommandArguments $arguments -RestartExitCodes @('3010') -SuccessExitCodes @('0') -CurrentLogFile $CurrentLogFile 
+                
+                Write-Log -Path $CurrentLogFIle -Message "Finished WEM Installation on $TargetMachine"
+
+
+            }
+        catch {
+                throw $_.Exception
+            }
+    }
+    end {
+    }
+
+}
+Function Install-WinRolesAndFeatures {
+    [CmdletBinding()] 
+    param (
+            [Parameter(Mandatory=$true)]
+            [String]$TargetMachine,
+
+            [Parameter(Mandatory=$true)]
+            [String[]]$RolesAndFeatures,
+
+ 
+            [Parameter(Mandatory=$true)] 
+            [Alias('LogFile')] 
+            [string]$CurrentLogFile
+
+        )
+
+   begin { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue'
+        $ErrorActionPreference = 'Stop'
+    } 
+    process {
+    Try {
+            Do {            
+                    If (!($winFeatures)) { Write-Log -Path $CurrentLogFile -Message ("Installing " + ($RolesAndFeatures -join ",") + " on $TargetMachine" ) }
+                    Else { Write-Log -Path $CurrentLogFile -Message ("Resuming installation of " + ($RolesAndFeatures -join ",") + " on $TargetMachine" ) }
+
+                    $WinFeatures = Add-WindowsFeature -ComputerName $TargetMachine -Name $RolesAndFeatures -IncludeAllSubFeature -IncludeManagementTools
+                    
+                    if ($WinFeatures.Success -ne 'True' )
+                        {
+                            throw "Failed to install $RolesAndFeatures on $TargetMachine"
+                        }
+                    if ($WinFeatures.RestartNeeded -eq 'Yes')
+                        {
+                            Write-Log -Path $CurrentLogFile -Message "Restart required, restarting $TargetMachine"
+                            Restart-Computer -ComputerName $TargetMachine -Wait -For PowerShell -Timeout 600 -Protocol WSMan -Force
+                        }
+                }
+            While ($WinFeatures.RestartNeeded -eq 'Yes')
+            Write-Log -Path $CurrentLogFile -Message ("Installed " + ($RolesAndFeatures -join ",") + " on $TargetMachine" )
+        }
+    catch {throw $_.Exception}
+    }
+    end {}       
+}
+#Import-Module ActiveDirectory
+
+Function Publish-GPOtoAD {
+    [CmdletBinding()] 
+    param (
+            #[Parameter(Mandatory=$true)] 
+            #[String]$BaseLDAPPath,
+           
+            #[Parameter(Mandatory=$true)] 
+            #[String]$DomainFQDN,
+
+           [string]$VDA,
+           
+           [Parameter(Mandatory=$true)] 
+           [Alias('LogFile')] 
+           [string]$CurrentLogFile='C:\Logs\PowerShellLog.log'
+
+            )
+        begin {
+                $VerbosePreference = 'Continue'
+                $ErrorActionPreference = 'Stop'
+               }
+        process {
+      
+            $GPOFolderName = "C:\Cetus\GPO"
+            $import_array = get-childitem $GPOFolderName | Select name
+            foreach ($ID in $import_array) {
+                $XMLFile = $GPOFolderName + "\" + $ID.Name + "\gpreport.xml"
+                $XMLData = [XML](get-content $XMLFile)
+                $GPOName = $XMLData.GPO.Name
+
+                Write-Log -Message "Importing the GPO `"$GPOName`" into AD" -Path $CurrentLogFile
+                import-gpo -BackupId $ID.Name -TargetName $GPOName -path $GPOFolderName -CreateIfNeeded
+            }              
+
+            Write-log -Path $CurrentLogFile -Message "Imported AD/GPO Modules"
+            if ($VDA -ne $null -or $VDA -ne "") {
+                if (Test-Path -Path "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions" -PathType Container) {
+                    Write-Log -Path $CurrentLogFIle -Message "Copying ADMX/ADML files for BIS-F and FSLogix to the Central Store"
+                    Copy-Item -Path "\\$VDA\\C$\Program Files (x86)\Base Image Script Framework (BIS-F)\ADMX\BaseImageScriptFramework.admx" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions" -Force
+                    Copy-Item -Path "\\$VDA\\C$\Program Files (x86)\Base Image Script Framework (BIS-F)\ADMX\en-US\BaseImageScriptFramework.adml" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions\en-US" -Force
+                    Copy-Item -Path "C:\Cetus\Software\FSLogix\fslogix.admx" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions" -Force
+                    Copy-Item -Path "C:\Cetus\Software\FSLogix\fslogix.adml" -Destination "\\$env:USERDNSDOMAIN\SYSVOL\$env:USERDNSDOMAIN\Policies\PolicyDefinitions\en-US" -Force
+                    Write-Log -Path $CurrentLogFIle -Message "Copied ADMX/ADML files for BIS-F and FSLogix to the Central Store"
+                }
+            }
+        }
+
+        end {}
+    }
+#Internal Function to validate JSON file
+Function Test-JSONFile
+{
+    Param ([string]$JSONFile)
+    try {
+        Get-Content -Path $JSONFile -ErrorAction Stop| ConvertFrom-Json -ErrorAction Stop;
+        $validJson = $true;
+    } catch {
+        $validJson = $false;
+    }
+
+    if ($validJson) {
+        return $true;
+    } else {
+        return $false;
+    } 
+}
+<# 
+.Synopsis 
+   Write-Log writes a message to a specified log file with the current time stamp. 
+.DESCRIPTION 
+   The Write-Log function is designed to add logging capability to other scripts. 
+   In addition to writing output and/or verbose you can write to a log file for 
+   later debugging. 
+.NOTES 
+   Created by: Jason Wasser @wasserja 
+   Modified: 11/24/2015 09:30:19 AM   
+ 
+   Changelog: 
+    * Code simplification and clarification - thanks to @juneb_get_help 
+    * Added documentation. 
+    * Renamed LogPath parameter to Path to keep it standard - thanks to @JeffHicks 
+    * Revised the Force switch to work as it should - thanks to @JeffHicks 
+ 
+   To Do: 
+    * Add error handling if trying to create a log file in a inaccessible location. 
+    * Add ability to write $Message to $Verbose or $Error pipelines to eliminate 
+      duplicates. 
+.PARAMETER Message 
+   Message is the content that you wish to add to the log file.  
+.PARAMETER Path 
+   The path to the log file to which you would like to write. By default the function will  
+   create the path and file if it does not exist.  
+.PARAMETER Level 
+   Specify the criticality of the log information being written to the log (i.e. Error, Warning, Informational) 
+.PARAMETER NoClobber 
+   Use NoClobber if you do not wish to overwrite an existing file. 
+.EXAMPLE 
+   Write-Log -Message 'Log message'  
+   Writes the message to c:\Logs\PowerShellLog.log. 
+.EXAMPLE 
+   Write-Log -Message 'Restarting Server.' -Path c:\Logs\Scriptoutput.log 
+   Writes the content to the specified log file and creates the path and file specified.  
+.EXAMPLE 
+   Write-Log -Message 'Folder does not exist.' -Path c:\Logs\Script.log -Level Error 
+   Writes the message to the specified log file as an error message, and writes the message to the error pipeline. 
+.LINK 
+   https://gallery.technet.microsoft.com/scriptcenter/Write-Log-PowerShell-999c32d0 
+#> 
+function Write-Log 
+{ 
+    [CmdletBinding()] 
+    Param 
+    ( 
+        [Parameter(Mandatory=$true, 
+                   ValueFromPipelineByPropertyName=$true)] 
+        [ValidateNotNullOrEmpty()] 
+        [Alias("LogContent")] 
+        [string]$Message, 
+ 
+        [Parameter(Mandatory=$false)] 
+        [Alias('LogPath')] 
+        [string]$Path='C:\Logs\PowerShellLog.log', 
+         
+        [Parameter(Mandatory=$false)] 
+        [ValidateSet("Error","Warn","Info")] 
+        [string]$Level="Info", 
+         
+        [Parameter(Mandatory=$false)] 
+        [switch]$NoClobber 
+    ) 
+ 
+    Begin 
+    { 
+        # Set VerbosePreference to Continue so that verbose messages are displayed. 
+        $VerbosePreference = 'Continue' 
+    } 
+    Process 
+    { 
+         
+        
+               
+        # If the file already exists and NoClobber was specified, do not write to the log. 
+        if ((Test-Path $Path) -AND $NoClobber) { 
+            Write-Error "Log file $Path already exists, and you specified NoClobber. Either delete the file or specify a different name." 
+            Return 
+            } 
+ 
+        # If attempting to write to a log file in a folder/path that doesn't exist create the file including the path. 
+        elseif (!(Test-Path $Path)) { 
+            Write-Verbose "Creating $Path." 
+            $NewLogFile = New-Item $Path -Force -ItemType File 
+            } 
+ 
+        else { 
+            # Nothing to see here yet. 
+            } 
+ 
+        # Format Date for our Log File 
+        $FormattedDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss" 
+ 
+        # Write message to error, warning, or verbose pipeline and specify $LevelText 
+        switch ($Level) { 
+            'Error' { 
+                Write-Error $Message
+                $LevelText = 'ERROR:' 
+                } 
+            'Warn' { 
+                Write-Warning $Message 
+                $LevelText = 'WARNING:' 
+                } 
+            'Info' { 
+                Write-Verbose $Message 
+                $LevelText = 'INFO:' 
+                } 
+            } 
+         
+        # Write log entry to $Path 
+        "$FormattedDate $LevelText $Message" | Out-File -FilePath $Path -Append 
+    } 
+    End 
+    { 
+    } 
+}
+export-modulemember -Function Copy-FromISO,Copy-FromZip,Publish-GPOtoAD,Copy-RoboMirror,Get-OrdinalNumber,Read-BooleanQuestion,Select-Products,Set-Parameters,Initialize-Machine,Install-CitrixProduct,Install-Software,Install-VDA,Install-WEM,Install-WinRolesAndFeatures,Test-JSONFile,Write-Log
+}

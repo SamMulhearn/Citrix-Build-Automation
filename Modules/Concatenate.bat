@@ -1,0 +1,1 @@
+type *.psm1 > concatenated.psm1

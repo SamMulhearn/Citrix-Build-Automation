@@ -1,4 +1,4 @@
-﻿Function Get-OrdinalNumber {
+Function Get-OrdinalNumber {
     Param(
         [Parameter(Mandatory=$true)]
         [int64]$num
@@ -171,6 +171,3 @@ Part 4: Configure the setup for AD
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); 
 
 }
-
-
-Export-ModuleMember Read-BooleanQuestion,Set-Parameters,Get-OrdinalNumber
