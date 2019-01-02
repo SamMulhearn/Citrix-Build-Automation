@@ -38,7 +38,7 @@
         catch {
                 throw $_.Exception
         }
-        Write-Log "Extracted $ZipFile to $DestinationFolder"
+        Write-Log "Extracted $ZipFile to $DestinationFolder" -path $CurrentLogFile
     }
     end {}
 }
