@@ -43,7 +43,7 @@
             Write-Log -Path $CurrentLogFile -Message ("Installing " + ($Products -join ", ") + " on $TargetMachine. See \\$TargetMachine\C$\Cetus\ for logs.")
             $commandargs =  @("/configure_firewall", "/quiet", "/logpath C:\Cetus", "/noreboot", "/nosql")
             $commandargs += ("/components " + ($Products -join ","))        
-            Install-Software -TargetMachine $TargetMachine -Executable "C:\Cetus\Software\CAVD\x64\XenDesktop Setup\XenDesktopServerSetup.exe" -CommandArguments $commandargs -RestartExitCodes @('3010') -SuccessExitCodes @(0) -LogFile $CurrentLogFile
+            Install-Software -TargetMachine $TargetMachine -Executable "C:\Cetus\Software\CVAD\x64\XenDesktop Setup\XenDesktopServerSetup.exe" -CommandArguments $commandargs -RestartExitCodes @('3010') -SuccessExitCodes @(0) -LogFile $CurrentLogFile
         }
         catch {throw $_}
         
