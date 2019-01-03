@@ -17,7 +17,7 @@ The Script searches for the following components:
 
 **Citrix Virtual Apps & Desktops**- `\Software\Citrix*.iso`
 
-**FSLogix** - `\Software\\\*FSLogix*.zip`
+**FSLogix** - `\Software\*FSLogix*.zip`
 
 **Workspace Environment Manager** - `\Software\Workspace-Environment-Management*.zip`
 
