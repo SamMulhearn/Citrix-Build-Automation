@@ -10,18 +10,18 @@ The script should be run on a machine in the same AD forest as the target machin
 
 The script is designed to be repeated in the event of failures. If errors occur, examine the logs (C:\Cetus\Logs), correct the fault, and re-run the script.
 
-The Script expects a 'Software' directory in the same directory as the script.
+The Script expects a 'Software' sub-directory in the same directory as the script.
 The Script searches for the following components:
 
-**Citrix Optimiser** -`\Software\CitrixOptimizer.zip`
+**Citrix Optimiser** -`.\Software\CitrixOptimizer.zip`
 
-**Citrix Virtual Apps & Desktops**- `\Software\Citrix*.iso`
+**Citrix Virtual Apps & Desktops**- `.\Software\Citrix*.iso`
 
-**FSLogix** - `\Software\*FSLogix*.zip`
+**FSLogix** - `.\Software\*FSLogix*.zip`
 
-**Workspace Environment Manager** - `\Software\Workspace-Environment-Management*.zip`
+**Workspace Environment Manager** - `.\Software\Workspace-Environment-Management*.zip`
 
-**Base Image Script Framework**- `\Software\setup-BIS-F*.exe.zip `
+**Base Image Script Framework**- `.\Software\setup-BIS-F*.exe.zip `
 
 To export a template GPO, use the following PowerShell command:
 `Backup-GPO -Name GPO_NAME -Path SCRIPTPATH\GPO`
