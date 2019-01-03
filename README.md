@@ -28,4 +28,4 @@ To export a template GPO for use with the script, use the following PowerShell c
 
 `Backup-GPO -Name GPO_NAME -Path SCRIPTPATH\GPO`
 
-Where GPO_NAME is the named of the GPO and SCRIPTPATH is the directory containing this script.
+Where `GPO_NAME` is the named of the GPO and `SCRIPTPATH` is the directory containing this script.
