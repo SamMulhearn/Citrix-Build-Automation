@@ -24,5 +24,7 @@ The Script searches for the following components:
 **Base Image Script Framework**- `.\Software\setup-BIS-F*.exe.zip `
 
 To export a template GPO, use the following PowerShell command:
+
 `Backup-GPO -Name GPO_NAME -Path SCRIPTPATH\GPO`
+
 Where GPO_NAME is the named of the GPO and SCRIPTPATH is the directory containing this script.
