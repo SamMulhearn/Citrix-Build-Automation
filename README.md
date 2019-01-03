@@ -14,9 +14,13 @@ The Script expects a 'Software' directory in the same directory as the script.
 The Script searches for the following components:
 
 **Citrix Optimiser** -`\Software\CitrixOptimizer.zip`
+
 **Citrix Virtual Apps & Desktops**- `\Software\Citrix*.iso`
+
 **FSLogix** - `\Software\\\*FSLogix*.zip`
+
 **Workspace Environment Manager** - `\Software\Workspace-Environment-Management*.zip`
+
 **Base Image Script Framework**- `\Software\setup-BIS-F*.exe.zip `
 
 To export a template GPO, use the following PowerShell command:
